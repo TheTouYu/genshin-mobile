@@ -1,0 +1,22 @@
+SCENARIO S1
+SEND S1 pkt=1 id=20 nx=32768 ny=32768
+SEND S1 pkt=2 id=20 nx=26214 ny=39321
+SEND S1 pkt=3 id=20 nx=39321 ny=26214
+SCENARIO S2
+SEND S2 pkt=1 id=20 nx=30208 ny=32768
+SEND S2 pkt=1 id=21 nx=35327 ny=32768
+SEND S2 pkt=2 id=20 nx=28672 ny=32768
+SEND S2 pkt=2 id=21 nx=36863 ny=32768
+SEND S2 pkt=3 id=20 nx=27136 ny=32768
+SEND S2 pkt=3 id=21 nx=38399 ny=32768
+SEND S2 pkt=4 id=20 nx=25600 ny=32768
+SEND S2 pkt=4 id=21 nx=39935 ny=32768
+SEND S2 pkt=5 id=20 nx=24064 ny=32768
+SEND S2 pkt=5 id=21 nx=41471 ny=32768
+SCENARIO S3
+SEND S3 pkt=1 id=30 nx=28160 ny=36408
+SEND S3 pkt=1 id=31 nx=37375 ny=36408
+SCENARIO S4
+SEND S4 pkt=1 id=20 nx=32768 ny=32768
+SEND S4 pkt=3 id=20 nx=25600 ny=22755
+TXSIM_END pkts=16 contacts=17

@@ -1,0 +1,4 @@
+[preflight] 原神（YuanShen.exe）在跑 —— 探针单例 mobui_probe_singleton 是整个 WINEPREFIX 共享的：
+            往 touchrecv.exe 注入验收拷贝会命中 ERROR_ALREADY_EXISTS → g_hook_mask=0 → 全表假 FAIL。
+            先关游戏，或用独立 WINEPREFIX 跑本验收台。当前实例:
+    1184810 YuanShen.exe -screen-fullscreen 0 -popupwindow -window-mode exclusive -platform_type CLOUD_THIRD_PARTY_PC

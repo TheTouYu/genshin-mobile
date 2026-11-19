@@ -1,0 +1,5 @@
+veu-test start
+veu-test caught 0xc0000005
+veu-test after first
+veu-test caught2 0xc0000005
+veu-test after second — thread alive

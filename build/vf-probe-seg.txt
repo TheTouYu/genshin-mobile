@@ -1,0 +1,79 @@
+[     1] t372   f0      === mobui_probe attached base=0000000140000000 (expect 0x140000000) test=1 ===
+[     1] t372   f0      TEST MODE: user32-only hooks (mask=0x80), 游戏地址钩子/状态读/命令执行全部跳过
+[    42] t372   f0      BRIDGE hooked RegisterTouchWindow
+[   174] t372   f0      BRIDGE hooked GetTouchInputInfo
+[   189] t372   f0      BRIDGE hooked CloseTouchInputHandle
+[   189] t372   f0      BRIDGE touch plumbing ready (3 hooks; mask=0x80)
+[   208] t372   f0      TINJ game hwnd=0000000000020058
+[   216] t372   f0      MAP disabled by config
+[   218] t376   f0      NET listening on 127.0.0.1:51799
+[   218] t372   f0      HEARTBEAT tick=1 fps_frames=0
+[   730] t372   f0      HEARTBEAT tick=2 fps_frames=0
+[  1309] t372   f0      HEARTBEAT tick=3 fps_frames=0
+[  2376] t372   f0      HEARTBEAT tick=5 fps_frames=0
+[  2894] t372   f0      HEARTBEAT tick=6 fps_frames=0
+[  2973] t376   f0      TOUCH post[net] n=1 slot=1
+[  2975] t348   f0      BRIDGE GetTouchInputInfo(count=1 size=48) -> TRUE
+[  3039] t376   f0      NET WM_TOUCH n=1 (from touchd)
+[  3094] t376   f0      TOUCH post[net] n=1 slot=2
+[  3096] t348   f0      BRIDGE GetTouchInputInfo(count=1 size=48) -> TRUE
+[  3208] t376   f0      NET WM_TOUCH n=1 (from touchd)
+[  3238] t376   f0      TOUCH post[net] n=1 slot=3
+[  3241] t376   f0      NET WM_TOUCH n=1 (from touchd)
+[  3241] t348   f0      BRIDGE GetTouchInputInfo(count=1 size=48) -> TRUE
+[  3334] t376   f0      TOUCH post[net] n=1 slot=4
+[  3403] t376   f0      NET WM_TOUCH n=1 (from touchd)
+[  3339] t348   f0      BRIDGE GetTouchInputInfo(count=1 size=48) -> TRUE
+[  3529] t372   f0      HEARTBEAT tick=7 fps_frames=0
+[  3804] t376   f0      TOUCH post[net] n=2 slot=5
+[  3807] t348   f0      BRIDGE GetTouchInputInfo(count=2 size=48) -> TRUE
+[  3871] t376   f0      NET WM_TOUCH n=2 (from touchd)
+[  3924] t376   f0      TOUCH post[net] n=2 slot=6
+[  3925] t348   f0      BRIDGE GetTouchInputInfo(count=2 size=48) -> TRUE
+[  4022] t376   f0      NET WM_TOUCH n=2 (from touchd)
+[  4068] t376   f0      TOUCH post[net] n=2 slot=7
+[  4069] t348   f0      BRIDGE GetTouchInputInfo(count=2 size=48) -> TRUE
+[  4085] t376   f0      NET WM_TOUCH n=2 (from touchd)
+[  4165] t376   f0      TOUCH post[net] n=2 slot=8
+[  4246] t376   f0      NET WM_TOUCH n=2 (from touchd)
+[  4165] t348   f0      BRIDGE GetTouchInputInfo(count=2 size=48) -> TRUE
+[  4285] t376   f0      TOUCH post[net] n=2 slot=9
+[  4286] t348   f0      BRIDGE GetTouchInputInfo(count=2 size=48) -> TRUE
+[  4286] t376   f0      NET WM_TOUCH n=2 (from touchd)
+[  4405] t376   f0      TOUCH post[net] n=2 slot=10
+[  4440] t376   f0      NET WM_TOUCH n=2 (from touchd)
+[  4408] t348   f0      BRIDGE GetTouchInputInfo(count=2 size=48) -> TRUE
+[  4562] t372   f0      HEARTBEAT tick=9 fps_frames=0
+[  4875] t376   f0      TOUCH post[net] n=2 slot=11
+[  4877] t348   f0      BRIDGE GetTouchInputInfo(count=2 size=48) -> TRUE
+[  4973] t376   f0      NET WM_TOUCH n=2 (from touchd)
+[  5004] t376   f0      TOUCH post[net] n=2 slot=12
+[  5007] t376   f0      NET WM_TOUCH n=2 (from touchd)
+[  5007] t348   f0      BRIDGE GetTouchInputInfo(count=2 size=48) -> TRUE
+[  5085] t372   f0      HEARTBEAT tick=10 fps_frames=0
+[  5466] t376   f0      TOUCH post[net] n=1 slot=13
+[  5467] t348   f0      BRIDGE GetTouchInputInfo(count=1 size=48) -> TRUE
+[  5467] t376   f0      NET WM_TOUCH n=1 (from touchd)
+[  5586] t376   f0      TOUCH post[net] n=1 slot=14
+[  5589] t348   f0      BRIDGE GetTouchInputInfo(count=1 size=48) -> TRUE
+[  5621] t376   f0      NET WM_TOUCH n=1 (from touchd)
+[  5657] t372   f0      HEARTBEAT tick=11 fps_frames=0
+[  5706] t376   f0      TOUCH post[net] n=1 slot=15
+[  5710] t348   f0      BRIDGE GetTouchInputInfo(count=1 size=48) -> TRUE
+[  5775] t376   f0      NET WM_TOUCH n=1 (from touchd)
+[  5826] t376   f0      TOUCH post[net] n=1 slot=16
+[  5830] t348   f0      BRIDGE GetTouchInputInfo(count=1 size=48) -> TRUE
+[  5942] t376   f0      NET WM_TOUCH n=1 (from touchd)
+[  6765] t372   f0      HEARTBEAT tick=13 fps_frames=0
+[  7409] t372   f0      HEARTBEAT tick=14 fps_frames=0
+[  7923] t372   f0      HEARTBEAT tick=15 fps_frames=0
+[  8961] t372   f0      HEARTBEAT tick=17 fps_frames=0
+[  9508] t372   f0      HEARTBEAT tick=18 fps_frames=0
+[ 10041] t372   f0      HEARTBEAT tick=19 fps_frames=0
+[ 11151] t372   f0      HEARTBEAT tick=21 fps_frames=0
+[ 11650] t372   f0      HEARTBEAT tick=22 fps_frames=0
+[ 12186] t372   f0      HEARTBEAT tick=23 fps_frames=0
+[ 13200] t372   f0      HEARTBEAT tick=25 fps_frames=0
+[ 13714] t372   f0      HEARTBEAT tick=26 fps_frames=0
+[ 14235] t372   f0      HEARTBEAT tick=27 fps_frames=0
+[ 15252] t372   f0      HEARTBEAT tick=29 fps_frames=0

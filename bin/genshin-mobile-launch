@@ -1,0 +1,127 @@
+#!/bin/bash
+# genshin-mobile-launch —— 原神「手机模式」唯一入口。桌面图标只调这一个脚本。
+#
+# 两条路线（区别是真实存在的，不是等价开关）：
+#   inject（默认）：PC 客户端 + 探针注入 + 切移动端 UI
+#       真多点触摸（WM_TOUCH 进程内投递）只有这条路线能给 —— 见
+#       .scratch/genshin-mobile/docs/unity-touch-notes.md
+#   native：原生 mobile platform（游戏自己按手机渲染，-platform_type
+#       CLOUD_THIRD_PARTY_MOBILE），不做触摸注入。走独立的 launcher 配置目录。
+#       ⚠️ 这条路线在项目文档里零记录，属实验路线。
+#
+# 用法：
+#   genshin-mobile-launch              默认：注入路线 + mobui30.dll（含运行时 primary/gain）
+#   genshin-mobile-launch --dry-run    只打印将要执行的命令，不启动任何东西
+#   genshin-mobile-launch --native     原生 mobile platform 路线
+#   genshin-mobile-launch --dll=mobui27.dll   换探针版本
+#   genshin-mobile-launch --status     看游戏在不在跑 + 当前 UI 模式
+#
+# 退出码：0=已派发/干跑正常 2=参数错 3=前置缺失 4=派发的单元立刻失败
+set -u
+
+PROJ=/home/h/dsh-plugins/.scratch/genshin-mobile
+MOBILE_LAUNCHER_FOLDER=/home/h/.local/share/anime-game-launcher-mobile
+NOTIFY=/home/h/.local/bin/dsh-notify
+RUNLOG=/tmp/genshin-mobile-launch.log
+# 默认 27：真机验证过、支持 6 指多点触控与捏合的那版（2026-11-19 21:1x 用户确认）
+# 28/29/30 引入了 lookgain 滞后滤波，实测把慢速双指捏合吞掉 → 不放默认
+DLL=${MOBUI_DLL:-mobui27.dll}
+DLL_EXPLICIT=0
+[ -n "${MOBUI_DLL:-}" ] && DLL_EXPLICIT=1
+ROUTE=inject
+DRY=0
+STATUS=0
+
+for a in "$@"; do
+  case "$a" in
+    --native)      ROUTE=native ;;
+    --route=*)     ROUTE=${a#--route=} ;;
+    --dll=*)       DLL=${a#--dll=}; DLL_EXPLICIT=1 ;;
+    --dry-run|-n)  DRY=1 ;;
+    --status)      STATUS=1 ;;
+    -h|--help)     sed -n '2,22p' "$0"; exit 0 ;;
+    *) echo "未知参数: $a（--help 看用法）" >&2; exit 2 ;;
+  esac
+done
+
+# 桌面会话环境：Hyprland + XWayland。.desktop 起的进程不一定继承这些，显式给。
+export XDG_RUNTIME_DIR=/run/user/1000
+export DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
+export DISPLAY=:1
+export WAYLAND_DISPLAY=wayland-1
+export XDG_SESSION_TYPE=wayland
+
+notify() { # notify <urgency> <summary> [body]
+  [ -x "$NOTIFY" ] || return 0
+  "$NOTIFY" --summary "$2" ${3:+--body "$3"} --urgency "$1" --key genshin-mobile --source genshin-mobile-launch >/dev/null 2>&1 || true
+}
+
+if [ "$STATUS" = 1 ]; then
+  if pgrep -x YuanShen.exe >/dev/null; then
+    echo "游戏在跑：pid=$(pgrep -x YuanShen.exe | head -1)"
+    if [ "$DLL_EXPLICIT" = 1 ]; then exec env MOBUI_DLL="$DLL" "$PROJ/mobui-ui.sh" status
+    else exec "$PROJ/mobui-ui.sh" status; fi
+  fi
+  echo "游戏没在跑"
+  exit 0
+fi
+
+# ---- 前置检查 ----
+[ -d "$PROJ" ] || { echo "找不到项目目录 $PROJ" >&2; exit 3; }
+if pgrep -x YuanShen.exe >/dev/null; then
+  # 已在跑：注入路线就只切 UI（幂等），native 路线无事可做
+  if [ "$ROUTE" = inject ]; then
+    echo "游戏已在跑，直接切移动端 UI（不重启游戏）"
+    [ "$DRY" = 1 ] && { echo "将执行: $PROJ/mobui-ui.sh touch（自动认领在跑的探针）"; exit 0; }
+    if [ "$DLL_EXPLICIT" = 1 ]; then exec env MOBUI_DLL="$DLL" "$PROJ/mobui-ui.sh" touch
+    else exec "$PROJ/mobui-ui.sh" touch; fi
+  fi
+  echo "游戏已在跑，native 路线需要重开游戏才有意义；本次什么都不做" >&2
+  exit 0
+fi
+
+case "$ROUTE" in
+  inject)
+    [ -f "$PROJ/build/$DLL" ] || { echo "探针 DLL 不存在: $PROJ/build/$DLL" >&2; exit 3; }
+    [ -x "$PROJ/mobui-play.sh" ] || { echo "mobui-play.sh 不可执行" >&2; exit 3; }
+    CMD="$PROJ/mobui-play.sh $DLL"
+    ;;
+  native)
+    [ -d "$MOBILE_LAUNCHER_FOLDER" ] || { echo "找不到 mobile launcher 配置: $MOBILE_LAUNCHER_FOLDER" >&2; exit 3; }
+    command -v an-anime-game-launcher >/dev/null || { echo "找不到 an-anime-game-launcher" >&2; exit 3; }
+    CMD="env GTK_THEME=Adwaita LAUNCHER_FOLDER=$MOBILE_LAUNCHER_FOLDER an-anime-game-launcher --just-run-game"
+    ;;
+  *) echo "未知路线: $ROUTE（inject|native）" >&2; exit 2 ;;
+esac
+
+if [ "$DRY" = 1 ]; then
+  printf '路线 = %s\n探针 = %s\n命令 = %s\n工作目录 = %s\n日志 = %s\n' \
+    "$ROUTE" "$([ "$ROUTE" = inject ] && echo "$DLL" || echo '(不用探针)')" "$CMD" "$PROJ" "$RUNLOG"
+  exit 0
+fi
+
+# ---- 派发：transient unit，图标进程退出后任务继续 ----
+mkdir -p "$(dirname "$RUNLOG")"
+printf '\n===== %s route=%s dll=%s =====\n' "$(date '+%F %T')" "$ROUTE" "$DLL" >>"$RUNLOG"
+UNIT="genshin-mobile-$(date +%H%M%S)"
+systemd-run --user --collect --unit="$UNIT" --working-directory="$PROJ" \
+  -p Environment="XDG_RUNTIME_DIR=$XDG_RUNTIME_DIR DBUS_SESSION_BUS_ADDRESS=$DBUS_SESSION_BUS_ADDRESS DISPLAY=$DISPLAY WAYLAND_DISPLAY=$WAYLAND_DISPLAY XDG_SESSION_TYPE=$XDG_SESSION_TYPE" \
+  -p StandardOutput=append:"$RUNLOG" -p StandardError=append:"$RUNLOG" \
+  /bin/bash -c "$CMD"
+rc=$?
+if [ $rc -ne 0 ]; then
+  echo "派发失败 (systemd-run rc=$rc)" >&2
+  notify critical "原神手机模式：启动失败" "systemd-run 返回 $rc，详见 $RUNLOG"
+  exit 4
+fi
+
+echo "已派发 unit=$UNIT，日志 $RUNLOG"
+sleep 3
+if systemctl --user is-active --quiet "$UNIT"; then
+  echo "✅ 正在启动（unit=$UNIT）"
+  notify normal "原神手机模式：启动中" "路线=$ROUTE，日志 $RUNLOG"
+else
+  echo "⚠️ 单元已结束，可能启动失败" >&2
+  notify critical "原神手机模式：启动失败" "unit=$UNIT 已退出，详见 $RUNLOG"
+  exit 4
+fi

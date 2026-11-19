@@ -1,0 +1,20 @@
+# 大体积、可再生、或本机专属的东西
+
+# 离线验收台的 wine prefix（655M）
+prefix-winestest/
+
+# 运行时日志（每次注入重写，15M+）
+build/*.log
+logs/
+
+# 探针命令队列（运行时追加，属于状态不是源码）
+build/*.cmds
+
+# 证据截图/录像（13M，需要时另行提供）
+proofs/
+mobile-ui-proof-*.png
+
+# 编译中间产物
+*.o
+*.obj
+__pycache__/
