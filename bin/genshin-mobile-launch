@@ -23,9 +23,9 @@ PROJ=/home/h/dsh-plugins/.scratch/genshin-mobile
 MOBILE_LAUNCHER_FOLDER=/home/h/.local/share/anime-game-launcher-mobile
 NOTIFY=/home/h/.local/bin/dsh-notify
 RUNLOG=/tmp/genshin-mobile-launch.log
-# 默认 27：真机验证过、支持 6 指多点触控与捏合的那版（2026-11-19 21:1x 用户确认）
-# 28/29/30 引入了 lookgain 滞后滤波，实测把慢速双指捏合吞掉 → 不放默认
-DLL=${MOBUI_DLL:-mobui27.dll}
+# 2026-11-19 21:3x 实测通过：mobui31 = 30 + 捏合修复（多指原样、增益只管单指）
+# 回退：--dll=mobui27.dll（更早的已知良好版，无运行时调参）
+DLL=${MOBUI_DLL:-mobui31.dll}
 DLL_EXPLICIT=0
 [ -n "${MOBUI_DLL:-}" ] && DLL_EXPLICIT=1
 ROUTE=inject
