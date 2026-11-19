@@ -70,7 +70,7 @@ static volatile LONG g_gsm_calls;
 // 都必须持有 g_touch_lock（net 线程与游戏线程共用）。
 #define MAX_CONTACTS 10
 #define TI_SLOTS 64                 /* 必须是 2 的幂：取槽用 &(TI_SLOTS-1)，越界在语法上不可能 */
-struct Contact { UINT32 id; int x; int y; int state; };   // state 1=down 2=move 3=up
+struct Contact { UINT32 id; int x; int y; int ax; int ay; int state; };   // state 1=down 2=move 3=up；ax/ay=按下时的原始位置（增益锚点）
 static Contact g_contacts[MAX_CONTACTS];
 static CRITICAL_SECTION g_touch_lock;
 static TOUCHINPUT g_ti_buf[TI_SLOTS][MAX_CONTACTS];
@@ -81,6 +81,8 @@ static volatile LONG g_stat_gti_foreign, g_proto_bad, g_watchdog_lifts, g_net_la
 static volatile LONG g_ui_auto = 0;      /* 1=检测到游戏把输入模式改回 PC(2) 时自动重新切触摸；默认 0=用户手动控制 */
 static volatile LONG g_convert_on = 1;   /* 0=不把系统指针消息转成 WM_TOUCH（用真实触摸通道时关掉，避免幽灵手指） */
 static volatile LONG g_look_gain = 100;   /* 触摸位移增益百分比：100=原样；<100 用于"游戏内灵敏度最低仍太快"时细化。cfg 键 lookgain= */
+static volatile LONG g_focus_gate = 1;    /* 1=游戏不是前台窗口时不投递（cfg 键 focusgate=） */
+static volatile LONG g_focus_blocked = 0; /* 已因失去焦点暂停投递的标记，用于只释放一次 */
 static volatile LONG g_screen_xy = 1;    /* 1=TOUCHINPUT.x/y 用屏幕坐标（MS 口径，ClientToScreen 后 ×100）；0=直接用客户区坐标。
                                              窗口原点在 (0,0) 时两者逐字节等价；cfg 键 screenxy= */
 static volatile LONG g_primary_mode = 0; /* TOUCHEVENTF_PRIMARY 语义（捏合 A/B 用）：0=first 数组首元素（现状）
@@ -532,19 +534,19 @@ static void run_command(LONG cmd, void* self)
         break;
     }
     case CMD_UIPC: {
-        /* 直接写输入模式字段为 2（PC UI）。写值不触发重建时用 touch_null 回来即可 */
-        uint64_t root = rd64(at(kRvaRoot));
-        uint64_t mgr = root ? rd64(root + kSlot9EC0) : 0;
-        if (!mgr) { xlog("RESULT uipc skipped: manager null (root=%p)", (void*)(uintptr_t)root); break; }
-        int before = (int)rd32(mgr + kModeField);
-        DWORD old = 0, tmp = 0;
-        uint64_t page = (mgr + kModeField) & ~0xFFFull;
-        if (VirtualProtect((void*)(uintptr_t)page, 0x1000, PAGE_READWRITE, &old)) {
-            *(volatile int*)(uintptr_t)(mgr + kModeField) = 2;
-            VirtualProtect((void*)(uintptr_t)page, 0x1000, old, &tmp);
-            xlog("RESULT uipc manager=%p mode %d -> %d", (void*)(uintptr_t)mgr, before,
-                 (int)rd32(mgr + kModeField));
-        } else xlog("RESULT uipc VirtualProtect failed err=%lu", (unsigned long)GetLastError());
+        /* 切 PC UI：必须走游戏自己的「应用输入模式」函数（与 touch_null 同一条路径，只是模式值传 2）。
+           裸写 kModeField 只会让字段变成 2、不触发 UI 重建——2026-11-19 用户实测：日志显示
+           "mode 0 -> 2" 成功，但画面没变。 */
+        {
+            uint64_t root0 = rd64(at(kRvaRoot));
+            uint64_t mgr0 = root0 ? rd64(root0 + kSlot9EC0) : 0;
+            int m0 = mgr0 ? (int)rd32(mgr0 + kModeField) : -1;
+            if (m0 == 2) { xlog("RESULT uipc skipped: already PC mode (mode9EC0=2)"); break; }
+        }
+        dump_state("before uipc");
+        DWORD e = guarded_call(1, NULL, 2);
+        xlog("RESULT uipc apply(mode=2) %s0x%08lx", e ? "exception=" : "returned normally",
+             (unsigned long)e);
         dump_state("after uipc");
         break;
     }
@@ -630,7 +632,9 @@ static int contact_upsert(UINT32 id, int x, int y, int active)
     if (!active) return 0;
     for (int i = 0; i < MAX_CONTACTS; i++) {
         if (!g_contacts[i].state) {
-            g_contacts[i].id = id; g_contacts[i].x = x; g_contacts[i].y = y; g_contacts[i].state = 1;
+            g_contacts[i].id = id; g_contacts[i].x = x; g_contacts[i].y = y;
+            g_contacts[i].ax = x; g_contacts[i].ay = y;   /* 锚点=按下点；新建时 x,y 未缩放即为原始位置 */
+            g_contacts[i].state = 1;
             return 1;
         }
     }
@@ -932,6 +936,7 @@ static void load_cfg(void)
             else if (!strcmp(k, "pump")) g_pump_on = strtoul(v, NULL, 0) ? 1 : 0;
             else if (!strcmp(k, "convert")) g_convert_on = strtoul(v, NULL, 0) ? 1 : 0;
             else if (!strcmp(k, "screenxy")) g_screen_xy = strtoul(v, NULL, 0) ? 1 : 0;
+            else if (!strcmp(k, "focusgate")) g_focus_gate = strtoul(v, NULL, 0) ? 1 : 0;
             else if (!strcmp(k, "primary")) g_primary_mode = !strncmp(v, "anchor", 6) ? 1 : (!strncmp(v, "none", 4) ? 2 : 0);
             else if (!strcmp(k, "lookgain")) { long gv = strtol(v, NULL, 0); if (gv < 5) gv = 5; if (gv > 400) gv = 400; g_look_gain = gv; }
             else if (!strcmp(k, "net_port")) g_net_port = (int)strtol(v, NULL, 0);
@@ -1327,6 +1332,22 @@ static void net_apply(const unsigned char* buf, int len)
     }
     InterlockedExchange(&g_net_last_pkt, (LONG)GetTickCount());
 
+    /* 焦点门闩：游戏不是前台窗口时整包丢弃，并抬一次全部接触点。
+       否则在浏览器或别的窗口上的触摸也会打进游戏（2026-11-19 用户实测）。 */
+    if (g_focus_gate) {
+        HWND fg = GetForegroundWindow();
+        DWORD fpid = 0;
+        if (fg) GetWindowThreadProcessId(fg, &fpid);
+        if (!fg || fpid != GetCurrentProcessId()) {
+            if (!InterlockedExchange(&g_focus_blocked, 1)) {
+                xlog("FOCUS 游戏不在前台 -> 暂停投递");
+                release_all_contacts("focus-lost");
+            }
+            return;
+        }
+        if (InterlockedExchange(&g_focus_blocked, 0)) xlog("FOCUS 回到前台 -> 恢复投递");
+    }
+
     RECT rc = {0, 0, 1, 1};
     if (g_game_hwnd) GetClientRect(g_game_hwnd, &rc);
     int w = rc.right - rc.left, h = rc.bottom - rc.top;
@@ -1366,9 +1387,13 @@ static void net_apply(const unsigned char* buf, int len)
                缩放位移后再叠整数截断，会把手指每秒几十像素的慢速相向移动算成 0，
                表现就是「捏合没反应」。2026-11-19 实测：mobui27（无增益）捏合正常，
                mobui28/29（lookgain=50）失效 → 这条是回归根因之一。 */
-            int dx = xs[j] - c->x, dy = ys[j] - c->y;
-            tx = c->x + (int)(((long)dx * gain + (dx > 0 ? 50 : -50)) / 100);
-            ty = c->y + (int)(((long)dy * gain + (dy > 0 ? 50 : -50)) / 100);
+            /* 增益以「按下点」为锚做绝对缩放：tx = ax + (raw - ax) * gain / 100。
+               这里绝不能拿 c->x（上一次发出的位置）当基准——那是递归滤波，每帧只走剩余位移的
+               gain%，摇杆方向与弓箭瞄准都会指数滞后，手感表现为「按下就定住、方向改不动」。
+               2026-11-19 用户实测：左摇杆按下后方向固定、长按攻击键不能拖动瞄准。 */
+            int dx = xs[j] - c->ax, dy = ys[j] - c->ay;
+            tx = c->ax + (int)(((long)dx * gain + (dx > 0 ? 50 : -50)) / 100);
+            ty = c->ay + (int)(((long)dy * gain + (dy > 0 ? 50 : -50)) / 100);
             if (tx < 0) tx = 0; if (tx > w - 1) tx = w - 1;
             if (ty < 0) ty = 0; if (ty > h - 1) ty = h - 1;
         }

@@ -21,6 +21,7 @@
 #include <netinet/in.h>
 #include <time.h>
 #include <dirent.h>
+#include <pthread.h>
 
 #define MAXSLOT 10
 #define PROTO_MAGIC 0x4D
@@ -72,6 +73,51 @@ static int build_pkt(unsigned char* pkt, struct slot* s, int* out_cnt)
 
 static char g_found[64];
 
+/* ---- 焦点门闩（Linux 侧）----
+   为什么在这里做：游戏进程里的 GetForegroundWindow() 在 XWayland 下不可靠——合成器已经把焦点
+   给了别的窗口，wine 还认为自己在前台（2026-11-19 实测：只剩 Firefox 前台，游戏仍收到点击）。
+   合成器才知道真相，所以由 touchd 每 200ms 问一次 Hyprland，游戏不在前台就不投递。
+   环境变量 FOCUS_CLASS 指定活动窗口的 class（默认 yuanshen.exe）；设成空串即关闭门闩。 */
+static volatile int g_focus_ok = 1;
+static volatile int g_gate_on = 0;
+static volatile int g_released = 0;
+static char g_focus_class[64] = "yuanshen.exe";
+
+/* 返回 1=匹配 0=不匹配 -1=没有 class 字段 */
+static int class_matches(const char* json, const char* want)
+{
+    const char* p = strstr(json, "\"class\"");
+    if (!p) return -1;
+    p = strchr(p, ':');
+    if (!p) return -1;
+    p = strchr(p, '"');
+    if (!p) return -1;
+    const char* q = strchr(p + 1, '"');
+    if (!q) return -1;
+    size_t len = (size_t)(q - p - 1);
+    if (strlen(want) != len) return 0;
+    return strncmp(p + 1, want, len) == 0;
+}
+
+static void* focus_thread(void* arg)
+{
+    (void)arg;
+    char buf[4096];
+    for (;;) {
+        FILE* fp = popen("hyprctl -j activewindow 2>/dev/null", "r");
+        int ok = 1;   /* 取不到就放行（fail-open：宁可多投，也不要把输入锁死） */
+        if (fp) {
+            size_t n = fread(buf, 1, sizeof(buf) - 1, fp);
+            buf[n] = 0;
+            pclose(fp);
+            if (n > 0) { int m = class_matches(buf, g_focus_class); if (m >= 0) ok = m; }
+        }
+        g_focus_ok = ok;
+        usleep(200000);
+    }
+    return NULL;
+}
+
 // 在 /sys/class/input 里按名字找设备节点（名字含 needle 即命中）
 static const char* find_device(const char* needle)
 {
@@ -105,6 +151,39 @@ static const char* find_device(const char* needle)
 int main(int argc, char** argv)
 {
     const char* dev = argc > 1 ? argv[1] : "auto";
+
+    /* 焦点门闩初始化（见 focus_thread 处的说明） */
+    {
+        const char* fc = getenv("FOCUS_CLASS");
+        if (fc) snprintf(g_focus_class, sizeof(g_focus_class), "%s", fc);
+        if (g_focus_class[0]) {
+            if (!getenv("HYPRLAND_INSTANCE_SIGNATURE")) {
+                const char* rd = getenv("XDG_RUNTIME_DIR");
+                char p[256];
+                snprintf(p, sizeof(p), "%s/hypr", rd ? rd : "/run/user/1000");
+                DIR* d = opendir(p);
+                if (d) {
+                    struct dirent* e;
+                    while ((e = readdir(d)) != NULL) {
+                        if (e->d_name[0] == '.') continue;
+                        setenv("HYPRLAND_INSTANCE_SIGNATURE", e->d_name, 1);
+                        break;
+                    }
+                    closedir(d);
+                }
+            }
+            pthread_t th;
+            if (pthread_create(&th, NULL, focus_thread, NULL) == 0) {
+                pthread_detach(th);
+                g_gate_on = 1;
+                fprintf(stderr, "focus-gate: 仅当活动窗口 class == '%s' 时投递\n", g_focus_class);
+            } else {
+                fprintf(stderr, "focus-gate: 线程创建失败，门闩关闭\n");
+            }
+        } else {
+            fprintf(stderr, "focus-gate: 已关闭（FOCUS_CLASS 为空）\n");
+        }
+    }
     int port = argc > 2 ? atoi(argv[2]) : 51721;
     int verbose = argc > 3 ? atoi(argv[3]) : 0;
 
@@ -169,6 +248,23 @@ int main(int argc, char** argv)
         long t = now_ms();
         if (!do_send && (t - last_send) >= HEARTBEAT_MS) { do_send = 1; is_hb = 1; }
         if (!do_send) continue;
+
+        /* 焦点门闩：游戏不在前台时整包丢弃；失焦瞬间发一个空包，
+           让探针立刻抬起全部接触点（否则按住不放的手指会一直卡着）。 */
+        if (g_gate_on && !g_focus_ok) {
+            if (!g_released) {
+                unsigned char z[3] = {'T', (unsigned char)PROTO_MAGIC, 0};
+                sendto(sock, z, 3, 0, (struct sockaddr*)&addr, sizeof(addr));
+                g_released = 1;
+                if (verbose) fprintf(stderr, "focus-gate: 失焦 -> 空包抬起全部接触点\n");
+            }
+            last_send = t;
+            continue;
+        }
+        if (g_released) {
+            g_released = 0;
+            if (verbose) fprintf(stderr, "focus-gate: 回到前台，恢复投递\n");
+        }
 
         int cnt = 0;
         int len = build_pkt(pkt, s, &cnt);

@@ -23,9 +23,9 @@ PROJ=/home/h/dsh-plugins/.scratch/genshin-mobile
 MOBILE_LAUNCHER_FOLDER=/home/h/.local/share/anime-game-launcher-mobile
 NOTIFY=/home/h/.local/bin/dsh-notify
 RUNLOG=/tmp/genshin-mobile-launch.log
-# 2026-11-19 21:3x 实测通过：mobui31 = 30 + 捏合修复（多指原样、增益只管单指）
+# 2026-11-19 22:0x mobui33：锚点增益 + 焦点门闩 + uipc 走游戏自己的模式应用函数
 # 回退：--dll=mobui27.dll（更早的已知良好版，无运行时调参）
-DLL=${MOBUI_DLL:-mobui31.dll}
+DLL=${MOBUI_DLL:-mobui33.dll}
 DLL_EXPLICIT=0
 [ -n "${MOBUI_DLL:-}" ] && DLL_EXPLICIT=1
 ROUTE=inject
