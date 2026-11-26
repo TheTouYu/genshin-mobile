@@ -81,7 +81,8 @@ static volatile LONG g_stat_gti_foreign, g_proto_bad, g_watchdog_lifts, g_net_la
 static volatile LONG g_ui_auto = 0;      /* 1=检测到游戏把输入模式改回 PC(2) 时自动重新切触摸；默认 0=用户手动控制 */
 static volatile LONG g_convert_on = 1;   /* 0=不把系统指针消息转成 WM_TOUCH（用真实触摸通道时关掉，避免幽灵手指） */
 static volatile LONG g_look_gain = 100;   /* 触摸位移增益百分比：100=原样；<100 用于"游戏内灵敏度最低仍太快"时细化。cfg 键 lookgain= */
-static volatile LONG g_focus_gate = 1;    /* 1=游戏不是前台窗口时不投递（cfg 键 focusgate=） */
+static volatile LONG g_focus_gate = 0;    /* 1=游戏不是前台窗口时不投递（cfg 键 focusgate=）。默认关闭：
+                                             串流时活动窗口常不是游戏，会让手势中途被掐断（2026-11-26 回归） */
 static volatile LONG g_focus_blocked = 0; /* 已因失去焦点暂停投递的标记，用于只释放一次 */
 static volatile LONG g_screen_xy = 1;    /* 1=TOUCHINPUT.x/y 用屏幕坐标（MS 口径，ClientToScreen 后 ×100）；0=直接用客户区坐标。
                                              窗口原点在 (0,0) 时两者逐字节等价；cfg 键 screenxy= */

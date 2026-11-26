@@ -76,6 +76,20 @@ systemd-run --user --collect --unit=mobui-touchd \
 - UI 模式：`build/<dll>.log` 的 `STATE slots ... mode9EC0=0` = 移动端 UI，`2` = PC UI
 - 单指语义：`f=12`(DOWN|PRIMARY) → `f=11`/`f=1`(MOVE) → `f=14`(UP|PRIMARY)，每条消息恰一个 PRIMARY
 
+## 焦点门闩（默认关闭）
+
+`tools/touchd` 与探针都曾内置"游戏不在前台就不投递"的门闩。**2026-11-26 实测：串流场景下活动窗口经常不是游戏**（切浏览器/聊天），门闩会在手势中途发空包抬起全部手指——表现为"捏合突然坏、边走边转互相干扰"，严重时触摸完全没进游戏（`STAT rx` 长时间不涨）。
+
+现在两侧默认都**关闭**，需要时显式打开：
+
+```bash
+# touchd：FOCUS_GATE=1 + FOCUS_CLASS=<窗口 class>（Hyprland 下 class 见 hyprctl clients）
+FOCUS_GATE=1 FOCUS_CLASS=yuanshen.exe tools/touchd auto 51721 1
+# 探针：cfg 里 focusgate=1（mobui33 起默认 0）
+```
+
+回归测试：`./test/focus_gate_test.sh`（5 项：默认关、空 class 关、显式开、class 命中/不命中）。
+
 ## 已知坑
 
 1. **探针版本漂移**：`build/<dll>.cmds` 是每个 DLL 独立的一份。写死文件名会让命令静默无效 ——

@@ -99,6 +99,17 @@ static int class_matches(const char* json, const char* want)
     return strncmp(p + 1, want, len) == 0;
 }
 
+/* 门闩是否启用：默认关闭。2026-11-26 回归——串流时活动窗口常是浏览器/终端，
+   门闩会在手势中途发空包抬起全部手指，表现为"捏合坏、边走边转互相干扰"。
+   需要时用 FOCUS_GATE=1 + FOCUS_CLASS=<窗口class> 显式打开。 */
+static int gate_enabled(char* cls, size_t csz)
+{
+    const char* fc = getenv("FOCUS_CLASS");
+    const char* fg = getenv("FOCUS_GATE");
+    snprintf(cls, csz, "%s", fc ? fc : "yuanshen.exe");
+    return (fg && strcmp(fg, "1") == 0 && cls[0]) ? 1 : 0;
+}
+
 static void* focus_thread(void* arg)
 {
     (void)arg;
@@ -152,11 +163,23 @@ int main(int argc, char** argv)
 {
     const char* dev = argc > 1 ? argv[1] : "auto";
 
-    /* 焦点门闩初始化（见 focus_thread 处的说明） */
+    /* 焦点门闩：默认关闭；--gate-config/--gate-match 供回归测试用（不碰设备） */
+    char gate_cls[64];
+    int gate = gate_enabled(gate_cls, sizeof gate_cls);
+    for (int i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "--gate-config") == 0) {
+            if (gate) printf("gate=on class=%s\n", gate_cls);
+            else printf("gate=off\n");
+            return 0;
+        }
+        if (strcmp(argv[i], "--gate-match") == 0 && i + 1 < argc) {
+            printf("match=%d\n", class_matches(argv[i + 1], gate_cls));
+            return 0;
+        }
+    }
     {
-        const char* fc = getenv("FOCUS_CLASS");
-        if (fc) snprintf(g_focus_class, sizeof(g_focus_class), "%s", fc);
-        if (g_focus_class[0]) {
+        if (gate) {
+            snprintf(g_focus_class, sizeof(g_focus_class), "%s", gate_cls);
             if (!getenv("HYPRLAND_INSTANCE_SIGNATURE")) {
                 const char* rd = getenv("XDG_RUNTIME_DIR");
                 char p[256];
@@ -181,7 +204,7 @@ int main(int argc, char** argv)
                 fprintf(stderr, "focus-gate: 线程创建失败，门闩关闭\n");
             }
         } else {
-            fprintf(stderr, "focus-gate: 已关闭（FOCUS_CLASS 为空）\n");
+            fprintf(stderr, "focus-gate: 已关闭（默认关闭；FOCUS_GATE=1 + FOCUS_CLASS=<class> 可开）\n");
         }
     }
     int port = argc > 2 ? atoi(argv[2]) : 51721;
