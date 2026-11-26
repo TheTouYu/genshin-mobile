@@ -84,3 +84,11 @@ systemd-run --user --collect --unit=mobui-touchd \
 3. **虚拟触摸设备会重建**：`event27 libvirtualhid Touchscreen` 被重启后，touchd 拿着旧句柄会
    报 `read: No such device` 退出 → 触摸全无。判据是 `systemctl --user is-active mobui-touchd`。
 4. **`--replay` 要配 full-run 接收端日志**（含 `SUMMARY touches=N`），喂 selftest 日志会稳定 FAIL。
+
+## 配套 GUI（命令管理器）
+
+日常操作（启动+注入+切 UI、运行中切移动端/PC UI、调灵敏度、离线验收、性能采样）已经做成可视化命令面板：
+
+- [TheTouYu/dsh-cli-manager](https://github.com/TheTouYu/dsh-cli-manager) —— 通用 CLI 命令管理 GUI，首个模块就是本项目的 10 条命令；每条命令原样显示、可复制、流式回显输出。
+- 模块定义：`modules/genshin-touch.json`（`cwd` 指向本仓库目录）。
+- Win11 迁移计划见该仓库的 `docs/win11-plan.md`。
